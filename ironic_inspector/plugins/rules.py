@@ -107,6 +107,14 @@ class ContainsCondition(ReCondition):
         return re.search(params['value'], str(field)) is not None
 
 
+class MatchesAnyCondition(MatchesCondition):
+    def check(self, node_info, field, params, **kwargs):
+        return any(
+            super(MatchesAnyCondition, self).check(
+                node_info, field, {'value': regexp}, **kwargs)
+            for regexp in params['value'])
+
+
 class FailAction(base.RuleActionPlugin):
     REQUIRED_PARAMS = {'message'}
 
