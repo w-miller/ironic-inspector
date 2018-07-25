@@ -125,6 +125,17 @@ class SetAttributeAction(base.RuleActionPlugin):
                           'value': params['value']}])
 
 
+class SetPortAttributeAction(base.RuleActionPlugin):
+    REQUIRED_PARAMS = {'path', 'port_mac', 'value'}
+
+    FORMATTED_PARAMS = ['port_mac', 'value']
+
+    def apply(self, node_info, params, **kwargs):
+        node_info.patch_port(params['port_mac'],
+                             [{'op': 'add', 'path': params['path'],
+                               'value': params['value']}])
+
+
 class SetCapabilityAction(base.RuleActionPlugin):
     REQUIRED_PARAMS = {'name'}
     OPTIONAL_PARAMS = {'value'}

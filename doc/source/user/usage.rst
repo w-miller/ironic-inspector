@@ -123,6 +123,11 @@ Default available actions include:
   value as a list and appends value to it. If optional ``unique`` parameter is
   set to ``True``, nothing will be added if given value is already in a list.
 
+* ``set-port-attribute`` sets an attribute on an Ironic port. Requires the MAC
+  address associated with the port as ``port_mac``, ``path`` field, which is
+  the path to the attribute as used by ironic (e.g.
+  ``/properties/something``), and a ``value`` to set.
+
 Starting from Mitaka release, ``value`` field in actions supports fetching data
 from introspection, it's using `python string formatting notation
 <https://docs.python.org/2/library/string.html#formatspec>`_ ::
