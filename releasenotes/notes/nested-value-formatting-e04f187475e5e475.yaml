@@ -1,0 +1,4 @@
+---
+features:
+  - Allow strings nested within dict or list structures as part of an action's
+    value to be formatted.
