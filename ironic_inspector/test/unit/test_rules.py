@@ -56,7 +56,8 @@ class TestCreateRule(BaseTest):
         self.assertTrue(rule_json.pop('uuid'))
         self.assertEqual({'description': None,
                           'conditions': [],
-                          'actions': self.actions_json},
+                          'actions': self.actions_json,
+                          'resource': 'node'},
                          rule_json)
 
     def test_duplicate_uuid(self):
@@ -82,7 +83,9 @@ class TestCreateRule(BaseTest):
         self.assertEqual({'description': None,
                           'conditions': [BaseTest.condition_defaults(cond)
                                          for cond in self.conditions_json],
-                          'actions': self.actions_json},
+                          'actions': self.actions_json,
+                          'resource': 'node',
+                          },
                          rule_json)
 
     def test_invalid_condition(self):
@@ -158,7 +161,8 @@ class TestGetRule(BaseTest):
         self.assertEqual({'description': None,
                           'conditions': [BaseTest.condition_defaults(cond)
                                          for cond in self.conditions_json],
-                          'actions': self.actions_json},
+                          'actions': self.actions_json,
+                          'resource': 'node'},
                          rule_json)
 
     def test_not_found(self):
@@ -403,7 +407,9 @@ class TestApplyActions(BaseTest):
         self.rule.apply_actions(self.node_info, data=self.data)
 
         self.act_mock.apply.assert_any_call(self.node_info,
-                                            {'message': 'boom!'})
+                                            {'message': 'boom!'},
+                                            resource='node',
+                                            uuid=self.node_info.uuid)
         self.act_mock.apply.assert_any_call(self.node_info, {})
         self.assertEqual(len(self.actions_json),
                          self.act_mock.apply.call_count)
@@ -440,7 +446,7 @@ class TestApplyActions(BaseTest):
             # String formatting, so all values will be strings.
             'value': {'baz': '17'},
             'path': '/driver_info/foo'
-        })
+        }, resource='node', uuid=self.node_info.uuid)
 
     def test_apply_data_format_value_list(self, mock_ext_mgr):
         self.data.update({'outer': {'inner': 'baz'}})
@@ -458,7 +464,7 @@ class TestApplyActions(BaseTest):
         self.act_mock.apply.assert_called_once_with(self.node_info, {
             'value': ['basic', ['baz']],
             'path': '/driver_info/foo'
-        })
+        }, resource='node', uuid=self.node_info.uuid)
 
     def test_apply_data_format_value_fail(self, mock_ext_mgr):
         self.rule = rules.create(

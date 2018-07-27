@@ -13,6 +13,7 @@
 
 """Cache for nodes currently under introspection."""
 
+import abc
 import collections
 import contextlib
 import copy
@@ -409,8 +410,12 @@ class NodeInfo(object):
         else:
             self._ports[mac] = port
 
-    def patch(self, patches, ironic=None):
-        """Apply JSON patches to a node.
+    def patch(self, patches, ironic=None, resource=None, uuid=None):
+        """Apply JSON patches to an Ironic object.
+
+        If `resource` and `uuid` are given, apply the patch to the Ironic
+        object of type `resource` with UUID `uuid`; otherwise, apply the patch
+        to this node itself.
 
         Refreshes cached node instance.
 
@@ -418,16 +423,13 @@ class NodeInfo(object):
         :param ironic: Ironic client to use instead of self.ironic
         :raises: ironicclient exceptions
         """
-        ironic = ironic or self.ironic
-        # NOTE(aarefiev): support path w/o ahead forward slash
-        # as Ironic cli does
-        for patch in patches:
-            if patch.get('path') and not patch['path'].startswith('/'):
-                patch['path'] = '/' + patch['path']
+        if uuid and resource == 'port':
+            patcher = PortPatcher(uuid, self, ironic)
+        else:
+            patcher = NodePatcher(self.uuid, self, ironic)
+        patcher.patch(patches)
 
-        LOG.debug('Updating node with patches %s', patches, node_info=self)
-        self._node = ironic.node.update(self.uuid, patches)
-
+    # Deprecated: use patch() with resource='port'.
     def patch_port(self, port, patches, ironic=None):
         """Apply JSON patches to a port.
 
@@ -435,27 +437,19 @@ class NodeInfo(object):
         :param patches: JSON patches to apply
         :param ironic: Ironic client to use instead of self.ironic
         """
-        ironic = ironic or self.ironic
-        ports = self.ports()
         if isinstance(port, six.string_types):
             port = ports[port]
-
-        LOG.debug('Updating port %(mac)s with patches %(patches)s',
-                  {'mac': port.address, 'patches': patches},
-                  node_info=self)
-        new_port = ironic.port.update(port.uuid, patches)
-        ports[port.address] = new_port
+        self.patch(patches, ironic=ironic, resource='port', uuid=port.uuid)
 
     def update_properties(self, ironic=None, **props):
-        """Update properties on a node.
+        """Update properties on an Ironic object.
 
         :param props: properties to update
         :param ironic: Ironic client to use instead of self.ironic
         """
-        ironic = ironic or self.ironic
         patches = [{'op': 'add', 'path': '/properties/%s' % k, 'value': v}
                    for k, v in props.items()]
-        self.patch(patches, ironic)
+        self.patch(patches, ironic=ironic)
 
     def update_capabilities(self, ironic=None, **caps):
         """Update capabilities on a node.
@@ -501,8 +495,8 @@ class NodeInfo(object):
         except AttributeError:
             raise KeyError(path)
 
-    def replace_field(self, path, func, **kwargs):
-        """Replace a field on ironic node.
+    def replace_field(self, path, func, resource=None, uuid=None, **kwargs):
+        """Replace a field on an Ironic object.
 
         :param path: path to a field as used by the ironic client
         :param func: function accepting an old value and returning a new one
@@ -511,7 +505,7 @@ class NodeInfo(object):
         :raises: KeyError if value is not found and default is not set
         :raises: everything that patch() may raise
         """
-        ironic = kwargs.pop("ironic", None) or self.ironic
+        ironic = kwargs.pop("ironic", None)
         try:
             value = self.get_by_path(path)
             op = 'replace'
@@ -525,7 +519,60 @@ class NodeInfo(object):
         ref_value = copy.deepcopy(value)
         value = func(value)
         if value != ref_value:
-            self.patch([{'op': op, 'path': path, 'value': value}], ironic)
+            self.patch([{'op': op, 'path': path, 'value': value}],
+                       ironic=ironic, resource=resource, uuid=uuid)
+
+
+@six.add_metaclass(abc.ABCMeta)
+class Patcher(object):
+    def __init__(self, uuid, node_info, ironic):
+        self._uuid = uuid
+        self._node_info = node_info
+        self._ironic = ironic
+
+    @abc.abstractproperty
+    def resource_type(self):
+        pass
+
+    def patch(self, patches):
+        self._patch(self._prepare_patches(patches))
+
+    @abc.abstractmethod
+    def _patch(self, patches):
+        pass
+
+    def _prepare_patches(self, patches):
+        # NOTE(aarefiev): support path w/o ahead forward slash
+        # as Ironic cli does
+        for patch in patches:
+            if patch.get('path') and not patch['path'].startswith('/'):
+                patch['path'] = '/' + patch['path']
+
+        LOG.debug('Updating %s %s with patches %s', self.resource_type,
+                  self._uuid, patches, node_info=self._node_info)
+        return patches
+
+
+class NodePatcher(Patcher):
+    @property
+    def resource_type(self):
+        return "node"
+
+    def _patch(self, patches):
+        new_node = self._ironic.node.update(self._uuid, patches)
+        self._node_info._node = new_node
+        return new_node
+
+
+class PortPatcher(Patcher):
+    @property
+    def resource_type(self):
+        return "port"
+
+    def _patch(self, patches, ironic):
+        new_port = self._ironic.port.update(self._uuid, patches)
+        self._node_info.ports()[new_port.address] = new_port
+        return new_port
 
 
 def triggers_fsm_error_transition(errors=(Exception,),

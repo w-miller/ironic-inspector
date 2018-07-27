@@ -32,6 +32,21 @@ LOG = utils.getProcessingLogger(__name__)
 _CONDITIONS_SCHEMA = None
 _ACTIONS_SCHEMA = None
 
+_RESOURCES = {'node', 'port'}
+_DEFAULT_RESOURCE = 'node'
+
+def validate_resource(resource):
+    if not resource:
+        return _DEFAULT_RESOURCE
+    try:
+        if resource.lower() in _RESOURCES:
+            return resource
+    except:
+        # Not a string.
+        pass
+    raise utils.Error(_('Invalid resource type provided: %(res)s. Valid '
+                        'resource types are: %(valid)s')
+                        % {'res': resource, 'valid': _RESOURCES})
 
 def conditions_schema():
     global _CONDITIONS_SCHEMA
@@ -102,17 +117,19 @@ def actions_schema():
 class IntrospectionRule(object):
     """High-level class representing an introspection rule."""
 
-    def __init__(self, uuid, conditions, actions, description):
+    def __init__(self, uuid, conditions, actions, description, resource):
         """Create rule object from database data."""
         self._uuid = uuid
         self._conditions = conditions
         self._actions = actions
         self._description = description
+        self._resource = resource
 
     def as_dict(self, short=False):
         result = {
             'uuid': self._uuid,
             'description': self._description,
+            'resource': self._resource,
         }
 
         if not short:
@@ -183,7 +200,7 @@ class IntrospectionRule(object):
         return True
 
     def apply_actions(self, node_info, data=None):
-        """Run actions on a node.
+        """Run actions on an Ironic object.
 
         :param node_info: NodeInfo instance
         :param data: introspection data
@@ -204,10 +221,12 @@ class IntrospectionRule(object):
                 else:
                     act.params[formatted_param] = _format_value(initial, data)
 
-            LOG.debug('Running action `%(action)s %(params)s`',
-                      {'action': act.action, 'params': act.params},
+            LOG.debug('Running action `%(res)s %(action)s %(params)s`',
+                      {'res': self._resource, 'action': act.action,
+                       'params': act.params},
                       node_info=node_info, data=data)
-            ext.apply(node_info, act.params)
+            ext.apply(node_info, act.params, resource=self._resource,
+                      uuid=self._uuid)
 
         LOG.debug('Successfully applied actions',
                   node_info=node_info, data=data)
@@ -266,7 +285,7 @@ def _parse_path(path):
     return scheme, path
 
 
-def create(conditions_json, actions_json, uuid=None,
+def create(conditions_json, actions_json, resource=None, uuid=None,
            description=None):
     """Create a new rule in database.
 
@@ -347,10 +366,12 @@ def create(conditions_json, actions_json, uuid=None,
 
         actions.append((action_json['action'], params))
 
+    resource = validate_resource(resource)
     try:
         with db.ensure_transaction() as session:
             rule = db.Rule(uuid=uuid, description=description,
-                           disabled=False, created_at=timeutils.utcnow())
+                           resource=resource, disabled=False,
+                           created_at=timeutils.utcnow())
 
             for field, op, multiple, invert, params in conditions:
                 rule.conditions.append(db.RuleCondition(op=op,
@@ -375,7 +396,8 @@ def create(conditions_json, actions_json, uuid=None,
     return IntrospectionRule(uuid=uuid,
                              conditions=rule.conditions,
                              actions=rule.actions,
-                             description=description)
+                             description=description,
+                             resource=resource)
 
 
 def get(uuid):
@@ -387,6 +409,7 @@ def get(uuid):
 
     return IntrospectionRule(uuid=rule.uuid, actions=rule.actions,
                              conditions=rule.conditions,
+                             resource=rule.resource,
                              description=rule.description)
 
 
@@ -395,6 +418,7 @@ def get_all():
     query = db.model_query(db.Rule).order_by(db.Rule.created_at)
     return [IntrospectionRule(uuid=rule.uuid, actions=rule.actions,
                               conditions=rule.conditions,
+                              resource=rule.resource,
                               description=rule.description)
             for rule in query]
 

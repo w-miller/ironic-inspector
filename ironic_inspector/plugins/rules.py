@@ -122,7 +122,9 @@ class SetAttributeAction(base.RuleActionPlugin):
 
     def apply(self, node_info, params, **kwargs):
         node_info.patch([{'op': 'add', 'path': params['path'],
-                          'value': params['value']}])
+                          'value': params['value']}],
+                        resource=kwargs.get('resource'),
+                        uuid=kwargs.get('uuid'))
 
 
 class SetCapabilityAction(base.RuleActionPlugin):
@@ -150,4 +152,6 @@ class ExtendAttributeAction(base.RuleActionPlugin):
                 values.append(value)
             return values
 
-        node_info.replace_field(params['path'], _replace, default=[])
+        node_info.replace_field(params['path'], _replace, default=[],
+                                resource=kwargs.get('resource'),
+                                uuid=kwargs.get('uuid'))
