@@ -99,6 +99,56 @@ def actions_schema():
     return _ACTIONS_SCHEMA
 
 
+class SourceData(object):
+    _DEFAULT_SCHEME = 'data'
+    _URI_SEPARATOR = '://'
+
+    def __init__(self, node_info, intr_data, uri):
+        self._scheme_data_sources = {
+            'data': [intr_data],
+            'node': [node_info.node().to_dict()]
+            'port': [p.to_dict() for p in node_info.ports()]
+        }
+        scheme, path = SourceData._parse_uri(uri)
+        try:
+            self._data = self._scheme_data_sources[scheme]
+        except KeyError:
+            raise utils.Error(_('Unsupported scheme for field: %(scheme), '
+                                'valid values are %(vals)') %
+                                {'scheme': scheme,
+                                 'vals': ', '.join(
+                                      self._scheme_data_sources.keys())})
+        try:
+            self._path_expr = jsonpath.parse(path)
+        except Exception as exc:
+            raise utils.Error(_('Unable to parse JSON path for URI %(uri)s: '
+                                '%(error)s') % {'uri': uri, 'error': exc})
+    
+    @property
+    def data(self):
+        return [x.value for x in self._path_expr.find(self._data)]
+
+    @classmethod
+    def _parse_uri(cls, uri):
+        """Parse URI, extracting the scheme and path.
+    
+        Parse URI against the allowed schemes, using the default if no scheme
+        was provided.
+    
+        :param uri: scheme + separator + path, e.g. "data://foo"
+        :return: tuple (scheme, path)
+        """
+        try:
+            index = uri.index(cls._URI_SEPARATOR)
+        except ValueError:
+            scheme = cls._DEFAULT_SCHEME
+            path = uri
+        else:
+            scheme = path[:index]
+            path = path[index + len(cls._URI_SEPARATOR):]
+        return scheme, path
+
+
 class IntrospectionRule(object):
     """High-level class representing an introspection rule."""
 
@@ -125,28 +175,19 @@ class IntrospectionRule(object):
     def description(self):
         return self._description or self._uuid
 
-    def check_conditions(self, node_info, data):
-        """Check if conditions are true for a given node.
+    def filter_by_conditions(self, node_info, values):
+        """Filter out Ironic objects that don't pass the conditions.
 
-        :param node_info: a NodeInfo object
-        :param data: introspection data
-        :returns: True if conditions match, otherwise False
+        :param node_info: A NodeInfo object
+        :param values: The values to check against the conditions
+        :returns: A list of Ironic objects
         """
         LOG.debug('Checking rule "%s"', self.description,
                   node_info=node_info, data=data)
         ext_mgr = plugins_base.rule_conditions_manager()
+
         for cond in self._conditions:
-            scheme, path = _parse_path(cond.field)
-
-            if scheme == 'node':
-                source_data = node_info.node().to_dict()
-            elif scheme == 'data':
-                source_data = data
-
-            field_values = jsonpath.parse(path).find(source_data)
-            field_values = [x.value for x in field_values]
-            cond_ext = ext_mgr[cond.op].obj
-
+            source_data = SourceData(node_info, data, cond.field)
             if not field_values:
                 if cond_ext.ALLOW_NONE:
                     LOG.debug('Field with JSON path %s was not found in data',
@@ -219,27 +260,6 @@ class IntrospectionRule(object):
                   node_info=node_info, data=data)
 
 
-def _parse_path(path):
-    """Parse path, extract scheme and path.
-
-     Parse path with 'node' and 'data' scheme, which links on
-     introspection data and node info respectively. If scheme is
-     missing in path, default is 'data'.
-
-    :param path: data or node path
-    :return: tuple (scheme, path)
-    """
-    try:
-        index = path.index('://')
-    except ValueError:
-        scheme = 'data'
-        path = path
-    else:
-        scheme = path[:index]
-        path = path[index + 3:]
-    return scheme, path
-
-
 def create(conditions_json, actions_json, uuid=None,
            description=None):
     """Create a new rule in database.
@@ -279,18 +299,6 @@ def create(conditions_json, actions_json, uuid=None,
     reserved_params = {'op', 'field', 'multiple', 'invert'}
     for cond_json in conditions_json:
         field = cond_json['field']
-
-        scheme, path = _parse_path(field)
-
-        if scheme not in ('node', 'data'):
-            raise utils.Error(_('Unsupported scheme for field: %s, valid '
-                                'values are node:// or data://') % scheme)
-        # verify field as JSON path
-        try:
-            jsonpath.parse(path)
-        except Exception as exc:
-            raise utils.Error(_('Unable to parse field JSON path %(field)s: '
-                                '%(error)s') % {'field': field, 'error': exc})
 
         plugin = cond_mgr[cond_json['op']].obj
         params = {k: v for k, v in cond_json.items()
@@ -411,8 +419,9 @@ def apply(node_info, data):
 
     to_apply = []
     for rule in rules:
-        if rule.check_conditions(node_info, data):
-            to_apply.append(rule)
+        filtered_ironic_objs = rule.filter_by_conditions(node_info, data)
+        for obj in filtered_ironic_objs:
+            to_apply.append((rule, obj))
 
     if to_apply:
         LOG.debug('Running actions', node_info=node_info, data=data)

@@ -112,7 +112,8 @@ class MatchesAnyCondition(MatchesCondition):
         return any(
             super(MatchesAnyCondition, self).check(
                 node_info, field, {'value': regexp}, **kwargs)
-            for regexp in params['value'])
+            for regexp in params['value']
+        )
 
 
 class FailAction(base.RuleActionPlugin):
@@ -133,15 +134,14 @@ class SetAttributeAction(base.RuleActionPlugin):
                           'value': params['value']}])
 
 
-class SetPortAttributeAction(base.RuleActionPlugin):
-    REQUIRED_PARAMS = {'path', 'port_mac', 'value'}
+class SetPortAttributeAction(base.PortRuleActionPlugin):
+    REQUIRED_PARAMS = {'path', 'value'}
 
-    FORMATTED_PARAMS = ['port_mac', 'value']
+    FORMATTED_PARAMS = ['value']
 
-    def apply(self, node_info, params, **kwargs):
-        node_info.patch_port(params['port_mac'],
-                             [{'op': 'add', 'path': params['path'],
-                               'value': params['value']}])
+    def apply(self, port, node_info, params, **kwargs):
+        node_info.patch_port(port, [{'op': 'add', 'path': params['path'],
+                                     'value': params['value']}])
 
 
 class SetCapabilityAction(base.RuleActionPlugin):

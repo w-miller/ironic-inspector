@@ -138,6 +138,25 @@ class RuleActionPlugin(WithValidation):  # pragma: no cover
         """
 
 
+@six.add_metaclass(abc.ABCMeta)
+class PortRuleActionPlugin(WithValidation):  # pragma: no cover
+    """Abstract base class for rule action plugins for ports."""
+
+    FORMATTED_PARAMS = []
+    """List of params will be formatted with python format."""
+
+    @abc.abstractmethod
+    def apply(self, port, node_info, params, **kwargs):
+        """Run action on successful rule match.
+
+        :param port: The port to apply the rule to
+        :param node_info: NodeInfo object
+        :param params: parameters as a dictionary
+        :param kwargs: used for extensibility without breaking existing plugins
+        :raises: utils.Error on failure
+        """
+
+
 _HOOKS_MGR = None
 _NOT_FOUND_HOOK_MGR = None
 _CONDITIONS_MGR = None
