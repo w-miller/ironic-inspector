@@ -421,6 +421,8 @@ class NodeInfo(object):
 
         :param patches: JSON patches to apply
         :param ironic: Ironic client to use instead of self.ironic
+        :param resource: The type of the Ironic object to patch
+        :param uuid: The UUID of the Ironic object to patch
         :raises: ironicclient exceptions
         """
         ironic = ironic or self.ironic
@@ -502,6 +504,8 @@ class NodeInfo(object):
 
         :param path: path to a field as used by the ironic client
         :param func: function accepting an old value and returning a new one
+        :param resource: The type of the Ironic object to patch
+        :param uuid: The UUID of the Ironic object to patch
         :param kwargs: if 'default' value is passed here, it will be used when
                        no existing value is found.
         :raises: KeyError if value is not found and default is not set
@@ -527,6 +531,7 @@ class NodeInfo(object):
 
 @six.add_metaclass(abc.ABCMeta)
 class Patcher(object):
+    """Abstract base class for JSON patching of Ironic objects."""
     def __init__(self, uuid, node_info, ironic):
         self._uuid = uuid
         self._node_info = node_info
@@ -534,28 +539,45 @@ class Patcher(object):
 
     @abc.abstractproperty
     def resource_type(self):
-        pass
+        """A string representing the type of Ironic object this class patches.
 
-    def patch(self, patches):
-        self._patch(self._prepare_patches(patches))
+        :return: string member of rules.py:_RESOURCES.
+        """
+        pass
 
     @abc.abstractmethod
     def _patch(self, patches):
+        """Implementation of patching mechanism.
+
+        :param patches: A list of dicts representing patches to be applied.
+        """
         pass
 
+    def patch(self, patches):
+        """Prepare/format the patches, then apply them.
+
+        :param patches: A list of dicts representing patches to be applied.
+        """
+        LOG.debug('Updating %s %s with patches %s', self.resource_type,
+                  self._uuid, patches, node_info=self._node_info)
+        self._patch(self._prepare_patches(patches))
+
     def _prepare_patches(self, patches):
+        """Ensure patches are formatted canonically.
+
+        :param patches: A list of dicts representing patches to be applied.
+        :return: `patches`, with each element formatted canonically.
+        """
         # NOTE(aarefiev): support path w/o ahead forward slash
         # as Ironic cli does
         for patch in patches:
             if patch.get('path') and not patch['path'].startswith('/'):
                 patch['path'] = '/' + patch['path']
-
-        LOG.debug('Updating %s %s with patches %s', self.resource_type,
-                  self._uuid, patches, node_info=self._node_info)
         return patches
 
 
 class NodePatcher(Patcher):
+    """Patcher for Ironic nodes."""
     @property
     def resource_type(self):
         return "node"
@@ -567,6 +589,7 @@ class NodePatcher(Patcher):
 
 
 class PortPatcher(Patcher):
+    """Patcher for Ironic ports."""
     @property
     def resource_type(self):
         return "port"

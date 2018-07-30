@@ -89,7 +89,7 @@ class Rule(Base):
     uuid = Column(String(36), primary_key=True)
     created_at = Column(DateTime, nullable=False)
     description = Column(Text)
-    resource = Column(Text)
+    resource = Column(Text, default='node')
     # NOTE(dtantsur): in the future we might need to temporary disable a rule
     disabled = Column(Boolean, default=False)
 

@@ -32,11 +32,17 @@ LOG = utils.getProcessingLogger(__name__)
 _CONDITIONS_SCHEMA = None
 _ACTIONS_SCHEMA = None
 
+# The set of possible resource types that an introspection rule can apply to.
 _RESOURCES = {'node', 'port'}
 _DEFAULT_RESOURCE = 'node'
 
 
 def validate_resource(resource):
+    """Ensure a resource type is valid, and return it in canonical form.
+
+    :param resource: String representing the resource type.
+    :return: Canonical version of `resource`.
+    """
     if not resource:
         return _DEFAULT_RESOURCE
     try:
@@ -299,6 +305,7 @@ def create(conditions_json, actions_json, resource=None, uuid=None,
     :param actions_json: list of dicts with the following keys:
                          * action - action type
                          Other keys are stored as is.
+    :param resource: The type of Ironic object this rule applies to.
     :param uuid: rule UUID, will be generated if empty
     :param description: human-readable rule description
     :returns: new IntrospectionRule object
