@@ -163,7 +163,8 @@ class TestSetAttributeAction(test_base.NodeTest):
         self.act.apply(self.node_info, self.params)
         mock_patch.assert_called_once_with([{'op': 'add',
                                              'path': '/extra/value',
-                                             'value': 42}])
+                                             'value': 42}], resource=mock.ANY,
+                                           uuid=mock.ANY)
 
 
 @mock.patch('ironic_inspector.common.ironic.get_client', new=mock.Mock())
@@ -180,7 +181,7 @@ class TestSetCapabilityAction(test_base.NodeTest):
         self.act.apply(self.node_info, self.params)
         mock_patch.assert_called_once_with(
             [{'op': 'add', 'path': '/properties/capabilities',
-              'value': 'cap1:val'}], mock.ANY)
+              'value': 'cap1:val'}], ironic=mock.ANY)
 
     @mock.patch.object(node_cache.NodeInfo, 'patch')
     def test_apply_with_existing(self, mock_patch):
@@ -205,7 +206,8 @@ class TestExtendAttributeAction(test_base.NodeTest):
     def test_apply(self, mock_patch):
         self.act.apply(self.node_info, self.params)
         mock_patch.assert_called_once_with(
-            [{'op': 'add', 'path': '/extra/value', 'value': [42]}], mock.ANY)
+            [{'op': 'add', 'path': '/extra/value', 'value': [42]}],
+            ironic=mock.ANY, resource=mock.ANY, uuid=mock.ANY)
 
     @mock.patch.object(node_cache.NodeInfo, 'patch')
     def test_apply_non_empty(self, mock_patch):
@@ -214,7 +216,7 @@ class TestExtendAttributeAction(test_base.NodeTest):
 
         mock_patch.assert_called_once_with(
             [{'op': 'replace', 'path': '/extra/value', 'value': [0, 42]}],
-            mock.ANY)
+            ironic=mock.ANY, resource=mock.ANY, uuid=mock.ANY)
 
     @mock.patch.object(node_cache.NodeInfo, 'patch')
     def test_apply_unique_with_existing(self, mock_patch):

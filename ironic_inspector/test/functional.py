@@ -395,6 +395,7 @@ class Test(Base):
         self.assertTrue(res['uuid'])
         rule['uuid'] = res['uuid']
         rule['links'] = res['links']
+        rule['resource'] = res['resource']
         rule['conditions'] = [
             test_rules.BaseTest.condition_defaults(rule['conditions'][0]),
         ]
@@ -406,7 +407,8 @@ class Test(Base):
         res = self.call_list_rules()
         self.assertEqual(rule['links'], res[0].pop('links'))
         self.assertEqual([{'uuid': rule['uuid'],
-                           'description': 'Cool actions'}],
+                           'description': 'Cool actions',
+                           'resource': 'node'}],
                          res)
 
         res = self.call_get_rule(rule['uuid'])

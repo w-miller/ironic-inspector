@@ -522,6 +522,7 @@ class TestProcessNode(BaseTest):
         swift_conn.create_object.assert_called_once_with(name, mock.ANY)
         self.assertEqual(expected,
                          json.loads(swift_conn.create_object.call_args[0][1]))
+        print(self.cli.node.update.call_args_list)
         self.cli.node.update.assert_any_call(self.uuid, patch)
 
 

@@ -736,22 +736,26 @@ class TestUpdate(test_base.NodeTest):
         self.assertFalse(self.ironic.node.update.called)
 
     def test_patch_port(self):
-        self.ironic.port.update.return_value = mock.sentinel.port
+        port_mock = mock.Mock()
+        self.ironic.port.update.return_value = port_mock
+        port_mock.address = 'mac0'
 
-        self.node_info.patch_port(self.ports['mac0'], ['patch'])
+        self.node_info.patch_port(self.ports['mac0'], [{'patch': 'patch'}])
 
-        self.ironic.port.update.assert_called_once_with('0', ['patch'])
-        self.assertIs(mock.sentinel.port,
-                      self.node_info.ports()['mac0'])
+        self.ironic.port.update.assert_called_once_with('0',
+                                                        [{'patch': 'patch'}])
+        self.assertIs(port_mock, self.node_info.ports()['mac0'])
 
     def test_patch_port_by_mac(self):
-        self.ironic.port.update.return_value = mock.sentinel.port
+        port_mock = mock.Mock()
+        self.ironic.port.update.return_value = port_mock
+        port_mock.address = 'mac0'
 
-        self.node_info.patch_port('mac0', ['patch'])
+        self.node_info.patch_port('mac0', [{'patch': 'patch'}])
 
-        self.ironic.port.update.assert_called_once_with('0', ['patch'])
-        self.assertIs(mock.sentinel.port,
-                      self.node_info.ports()['mac0'])
+        self.ironic.port.update.assert_called_once_with('0',
+                                                        [{'patch': 'patch'}])
+        self.assertIs(port_mock, self.node_info.ports()['mac0'])
 
     def test_delete_port(self):
         self.node_info.delete_port(self.ports['mac0'])

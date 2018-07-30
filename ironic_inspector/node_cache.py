@@ -423,6 +423,7 @@ class NodeInfo(object):
         :param ironic: Ironic client to use instead of self.ironic
         :raises: ironicclient exceptions
         """
+        ironic = ironic or self.ironic
         if uuid and resource == 'port':
             patcher = PortPatcher(uuid, self, ironic)
         else:
@@ -438,7 +439,7 @@ class NodeInfo(object):
         :param ironic: Ironic client to use instead of self.ironic
         """
         if isinstance(port, six.string_types):
-            port = ports[port]
+            port = self.ports()[port]
         self.patch(patches, ironic=ironic, resource='port', uuid=port.uuid)
 
     def update_properties(self, ironic=None, **props):
@@ -447,6 +448,7 @@ class NodeInfo(object):
         :param props: properties to update
         :param ironic: Ironic client to use instead of self.ironic
         """
+        ironic = ironic or self.ironic
         patches = [{'op': 'add', 'path': '/properties/%s' % k, 'value': v}
                    for k, v in props.items()]
         self.patch(patches, ironic=ironic)
@@ -569,7 +571,7 @@ class PortPatcher(Patcher):
     def resource_type(self):
         return "port"
 
-    def _patch(self, patches, ironic):
+    def _patch(self, patches):
         new_port = self._ironic.port.update(self._uuid, patches)
         self._node_info.ports()[new_port.address] = new_port
         return new_port

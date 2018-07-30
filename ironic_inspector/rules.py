@@ -35,18 +35,20 @@ _ACTIONS_SCHEMA = None
 _RESOURCES = {'node', 'port'}
 _DEFAULT_RESOURCE = 'node'
 
+
 def validate_resource(resource):
     if not resource:
         return _DEFAULT_RESOURCE
     try:
         if resource.lower() in _RESOURCES:
             return resource
-    except:
+    except AttributeError:
         # Not a string.
         pass
     raise utils.Error(_('Invalid resource type provided: %(res)s. Valid '
-                        'resource types are: %(valid)s')
-                        % {'res': resource, 'valid': _RESOURCES})
+                        'resource types are: %(valid)s'),
+                      {'res': resource, 'valid': _RESOURCES})
+
 
 def conditions_schema():
     global _CONDITIONS_SCHEMA
@@ -225,8 +227,9 @@ class IntrospectionRule(object):
                       {'res': self._resource, 'action': act.action,
                        'params': act.params},
                       node_info=node_info, data=data)
+            # FIXME(w-miller): apply to the correct object
             ext.apply(node_info, act.params, resource=self._resource,
-                      uuid=self._uuid)
+                      uuid=node_info.uuid)
 
         LOG.debug('Successfully applied actions',
                   node_info=node_info, data=data)

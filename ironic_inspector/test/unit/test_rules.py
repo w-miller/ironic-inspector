@@ -410,7 +410,9 @@ class TestApplyActions(BaseTest):
                                             {'message': 'boom!'},
                                             resource='node',
                                             uuid=self.node_info.uuid)
-        self.act_mock.apply.assert_any_call(self.node_info, {})
+        self.act_mock.apply.assert_any_call(self.node_info, {},
+                                            resource='node',
+                                            uuid=self.node_info.uuid)
         self.assertEqual(len(self.actions_json),
                          self.act_mock.apply.call_count)
 
